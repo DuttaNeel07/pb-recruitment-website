@@ -24,12 +24,13 @@ export interface AdminProblemSummary {
 export interface ProblemTestCase {
   input: string;
   expected_output: string;
+  is_sample: boolean;
 }
 
 interface ProblemTestCaseResponse {
-  index?: number;
   input: string;
   expected_output?: string;
+  is_sample?: boolean;
 }
 
 export interface AdminProblem extends AdminProblemSummary {
@@ -149,16 +150,19 @@ class AdminApiService {
         throw new Error('The backend did not return this problem\'s testcase inputs.');
       }
 
-      const answers = await this.getProblemAnswers(contestId, problemId);
-      const testcases = testcaseInputs.map((testcase, position) => {
+      const testcases = testcaseInputs.map((testcase) => {
         if (typeof testcase.input !== 'string') {
           throw new Error('The backend returned an invalid testcase input; editing was stopped.');
         }
-        const answer = answers[testcase.index ?? position];
+        const answer = testcase.expected_output;
         if (typeof answer !== 'string') {
           throw new Error('The backend returned incomplete testcase answers; editing was stopped.');
         }
-        return { input: testcase.input, expected_output: answer };
+        return {
+          input: testcase.input,
+          expected_output: answer,
+          is_sample: testcase.is_sample === true,
+        };
       });
 
       return {
@@ -190,13 +194,6 @@ class AdminApiService {
       options: problem.options,
       testcases: [],
     };
-  }
-
-  async getProblemAnswers(contestId: string, problemId: string): Promise<string[]> {
-    const response = await this.axiosInstance.get<string[]>(
-      `/admin/${contestId}/${problemId}/answers`,
-    );
-    return response.data;
   }
 
   async createProblem(contestId: string, problem: UpsertProblemPayload): Promise<AdminProblemSummary> {
