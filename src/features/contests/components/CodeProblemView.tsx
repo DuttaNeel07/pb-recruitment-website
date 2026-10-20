@@ -1,12 +1,15 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import Editor from '@monaco-editor/react';
+import axios from 'axios';
 import { Button } from '@/components/ui/button';
 import { Play, Send, Copy, Check } from 'lucide-react';
 import type { Problem } from '../problem.types';
+import type { RunCodeResponse } from '@/services/api/contestApi';
 
 interface CodeProblemViewProps {
   problem: Problem;
   onSubmit?: (code: string, language: string) => Promise<void>;
+  onRun?: (code: string, language: string, stdin: string) => Promise<RunCodeResponse>;
 }
 
 const SUPPORTED_LANGUAGES = [
@@ -50,13 +53,28 @@ int main() {
 }`,
 };
 
-export const CodeProblemView = ({ problem, onSubmit }: CodeProblemViewProps) => {
+const getRunErrorMessage = (error: unknown): string => {
+  if (axios.isAxiosError(error)) {
+    if (error.response?.status === 404) return 'Code execution is unavailable right now.';
+    const responseData: unknown = error.response?.data;
+    if (typeof responseData === 'object' && responseData !== null) {
+      const data = responseData as Record<string, unknown>;
+      if (typeof data.error === 'string') return data.error;
+      if (typeof data.message === 'string') return data.message;
+    }
+    if (error.message) return error.message;
+  }
+  return error instanceof Error ? error.message : 'Code execution failed. Please try again.';
+};
+
+export const CodeProblemView = ({ problem, onSubmit, onRun }: CodeProblemViewProps) => {
   const [selectedLanguage, setSelectedLanguage] = useState('cpp');
   const [codeByLanguage, setCodeByLanguage] = useState<Record<string, string>>(
     () => ({ ...DEFAULT_CODE_TEMPLATES }),
   );
   const [customInput, setCustomInput] = useState('');
   const [output, setOutput] = useState('');
+  const [isOutputError, setIsOutputError] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [activeTab, setActiveTab] = useState<'input' | 'output'>('input');
@@ -67,26 +85,77 @@ export const CodeProblemView = ({ problem, onSubmit }: CodeProblemViewProps) => 
   const [resizeDirection, setResizeDirection] = useState<'vertical' | 'horizontal' | null>(null);
   const rightPaneRef = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const inputRevisionRef = useRef(0);
   const code = codeByLanguage[selectedLanguage] || '';
 
-  const handleLanguageChange = useCallback((newLanguage: string) => {
-    setSelectedLanguage(newLanguage);
+  const invalidateRun = useCallback(() => {
+    inputRevisionRef.current += 1;
+    setOutput('');
+    setIsOutputError(false);
   }, []);
 
+  const handleLanguageChange = useCallback((newLanguage: string) => {
+    invalidateRun();
+    setSelectedLanguage(newLanguage);
+  }, [invalidateRun]);
+
   const handleCodeChange = useCallback((value: string | undefined) => {
+    invalidateRun();
     setCodeByLanguage((current) => ({
       ...current,
       [selectedLanguage]: value || '',
     }));
-  }, [selectedLanguage]);
+  }, [invalidateRun, selectedLanguage]);
 
   const handleRunCode = useCallback(async () => {
+    if (!onRun) {
+      setOutput('Code execution is unavailable right now.');
+      setIsOutputError(true);
+      setActiveTab('output');
+      return;
+    }
+
     setIsRunning(true);
     setActiveTab('output');
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setOutput('Code execution will be implemented with backend API\n\nYour custom input:\n' + (customInput || '(no input provided)'));
-    setIsRunning(false);
-  }, [customInput]);
+    setOutput('Running code...');
+    setIsOutputError(false);
+    const inputRevision = inputRevisionRef.current;
+
+    try {
+      const result = await onRun(code, selectedLanguage, customInput);
+      if (inputRevision !== inputRevisionRef.current) return;
+      const sections = ['Status: ' + (result.status || 'Finished')];
+      setIsOutputError(!['accepted', 'finished'].includes(result.status.toLowerCase()));
+      let hasProgramOutput = false;
+      if (result.runtime > 0) sections.push('Runtime: ' + result.runtime + ' ms');
+      if (result.memory) sections.push('Memory: ' + result.memory + ' KB');
+      if (result.compile_output?.trim()) {
+        hasProgramOutput = true;
+        sections.push('Compiler output:\n' + result.compile_output.trimEnd());
+      }
+      if (result.stderr?.trim()) {
+        hasProgramOutput = true;
+        sections.push('Error output:\n' + result.stderr.trimEnd());
+      }
+      if (result.stdout) {
+        hasProgramOutput = true;
+        sections.push(result.stdout);
+      }
+      if (!hasProgramOutput) sections.push(
+        result.status.toLowerCase() === 'accepted'
+          ? '(Program finished without output.)'
+          : '(No output was returned.)',
+      );
+
+      setOutput(sections.join('\n\n'));
+    } catch (error) {
+      if (inputRevision !== inputRevisionRef.current) return;
+      setIsOutputError(true);
+      setOutput(getRunErrorMessage(error));
+    } finally {
+      setIsRunning(false);
+    }
+  }, [code, customInput, onRun, selectedLanguage]);
 
   const handleSubmit = async () => {
     if (!onSubmit) {
@@ -367,7 +436,7 @@ export const CodeProblemView = ({ problem, onSubmit }: CodeProblemViewProps) => 
             <div className="flex items-center gap-2">
               <Button
                 onClick={handleRunCode}
-                disabled={isRunning}
+                disabled={isRunning || !code.trim()}
                 size="sm"
                 variant="outline"
                 className="text-xs flex items-center gap-1 text-black hover:text-black"
@@ -468,7 +537,10 @@ export const CodeProblemView = ({ problem, onSubmit }: CodeProblemViewProps) => 
                   </label>
                   <textarea
                     value={customInput}
-                    onChange={(e) => setCustomInput(e.target.value)}
+                    onChange={(e) => {
+                      invalidateRun();
+                      setCustomInput(e.target.value);
+                    }}
                     placeholder="Enter your custom input here..."
                     className="flex-1 bg-gray-900 border border-gray-700 rounded p-2 text-xs font-mono text-white focus:outline-none focus:border-green-400 resize-none"
                   />
@@ -479,7 +551,7 @@ export const CodeProblemView = ({ problem, onSubmit }: CodeProblemViewProps) => 
                     Output:
                   </label>
                   {output ? (
-                    <pre className="flex-1 bg-black border border-gray-700 rounded p-2 text-xs font-mono text-green-300 overflow-auto">
+                    <pre className={'flex-1 bg-black border border-gray-700 rounded p-2 text-xs font-mono overflow-auto ' + (isOutputError ? 'text-red-300' : 'text-green-300')}>
                       {output}
                     </pre>
                   ) : (
