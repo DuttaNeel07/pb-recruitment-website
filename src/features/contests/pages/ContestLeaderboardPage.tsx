@@ -23,6 +23,9 @@ export const ContestLeaderboardPage = () => {
     leaderboard,
     contest,
     currentUserRank,
+    page,
+    setPage,
+    totalPages,
     isLoading,
     error,
     totalParticipants,
@@ -47,12 +50,20 @@ export const ContestLeaderboardPage = () => {
           <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
             <p className="text-red-800 font-medium mb-2">Error loading leaderboard</p>
             <p className="text-red-600 text-sm mb-4">{error || 'Contest not found'}</p>
-            <Link
-              to="/contests"
-              className="inline-block px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-            >
-              Back to Contests
-            </Link>
+            <div className="flex justify-center gap-3">
+              <button
+                onClick={leaderboardState.refresh}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                Retry
+              </button>
+              <Link
+                to="/contests"
+                className="inline-block px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors"
+              >
+                Back to Contests
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -96,6 +107,31 @@ export const ContestLeaderboardPage = () => {
           entries={leaderboard}
           currentUserId={currentUserRank?.user_id}
         />
+
+        {/* Pagination controls */}
+        {(totalPages > 1 || page > 0) && (
+          <div className="flex items-center justify-between mt-4 text-sm text-gray-400 font-['DM_Sans']">
+            <span>
+              Page {page + 1} of {Math.max(1, totalPages)} ({totalParticipants} total participants)
+            </span>
+            <div className="flex gap-2">
+              <button
+                disabled={page === 0}
+                onClick={() => setPage(Math.max(0, page - 1))}
+                className="px-3 py-1 bg-gray-900 border border-gray-800 rounded disabled:opacity-40 hover:text-white transition"
+              >
+                Previous
+              </button>
+              <button
+                disabled={page >= totalPages - 1}
+                onClick={() => setPage(page + 1)}
+                className="px-3 py-1 bg-gray-900 border border-gray-800 rounded disabled:opacity-40 hover:text-white transition"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Empty State for Filtered Results */}
         {leaderboard.length === 0 && totalParticipants > 0 && (

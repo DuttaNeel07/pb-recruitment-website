@@ -1,3 +1,9 @@
+export interface PaginatedLeaderboard {
+  entries: LeaderboardEntry[];
+  totalCount: number;
+  totalPages: number;
+}
+
 import axios, { type AxiosInstance, type AxiosError } from 'axios';
 import type { Problem, LeaderboardEntry } from '@/features/contests/problem.types';
 import {
@@ -76,9 +82,24 @@ class ContestApiService {
     return toProblemDetails(response.data);
   }
 
-  async getContestLeaderboard(contestId: string): Promise<LeaderboardEntry[]> {
-    const response = await this.axiosInstance.get<LeaderboardEntry[]>(`/contests/${contestId}/leaderboard`);
-    return response.data;
+  async getContestLeaderboard(contestId: string, page: number = 0): Promise<PaginatedLeaderboard> {
+    const response = await this.axiosInstance.get<LeaderboardEntry[]>(
+      `/contests/${contestId}/leaderboard?page=${page}`,
+      { timeout: 15_000 }
+    );
+    const [totalCount, totalPages] = ['x-total-count', 'x-total-pages'].map((header) => {
+      const value = response.headers[header];
+      if (typeof value !== 'string' || !/^\d+$/.test(value) || !Number.isSafeInteger(Number(value))) {
+        throw new Error('Missing or invalid leaderboard pagination headers. Please try again.');
+      }
+      return Number(value);
+    });
+
+    return {
+      entries: response.data || [],
+      totalCount,
+      totalPages,
+    };
   }
 
   async getContestById(contestId: string): Promise<Contest | null> {

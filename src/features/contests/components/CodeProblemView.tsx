@@ -108,6 +108,12 @@ export const CodeProblemView = ({ problem, onSubmit, onRun }: CodeProblemViewPro
   }, [invalidateRun, selectedLanguage]);
 
   const handleRunCode = useCallback(async () => {
+    if (!code.trim()) {
+      setOutput('Code is empty.');
+      setIsOutputError(true);
+      setActiveTab('output');
+      return;
+    }
     if (!onRun) {
       setOutput('Code execution is unavailable right now.');
       setIsOutputError(true);
