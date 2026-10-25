@@ -30,7 +30,7 @@ export default function Footer() {
       >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <motion.div variants={fadeInUp} className="flex flex-col items-start">
-            <Link to="/" className="flex items-center space-x-2">
+            <Link to="https://pointblank.club" className="flex items-center space-x-2">
               <img src={logo} alt="PB DSC Logo" className="h-6 mb-4 hover:scale-105 transition-transform" />
             </Link>
           </motion.div>
