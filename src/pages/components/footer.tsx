@@ -62,7 +62,7 @@ export default function Footer() {
             <h3 className="text-xl mb-4">Connect With Us</h3>
             <div className="flex space-x-4">
               <motion.a
-                href="https://x.com/pointblank_dsce"
+                href="https://x.com/pointblank_club"
                 target="_blank"
                 rel="noopener noreferrer"
                 whileHover={{ scale: 1.1 }}
@@ -72,7 +72,7 @@ export default function Footer() {
                 <Twitter size={24} />
               </motion.a>
               <motion.a
-                href="https://www.instagram.com/pointblank_dsce/"
+                href="https://www.instagram.com/pointblank_club_"
                 target="_blank"
                 rel="noopener noreferrer"
                 whileHover={{ scale: 1.1 }}
@@ -82,7 +82,7 @@ export default function Footer() {
                 <Instagram size={24} />
               </motion.a>
               <motion.a
-                href="https://www.linkedin.com/company/point-blank-d"
+                href="https://www.linkedin.com/company/pointblank-club/"
                 target="_blank"
                 rel="noopener noreferrer"
                 whileHover={{ scale: 1.1 }}
